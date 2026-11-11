@@ -1,0 +1,6 @@
+Ground materials from ambientCG (https://ambientcg.com), licensed CC0 1.0 (public domain):
+- Asphalt026C -> asphalt_*.jpg
+- PavingStones070 -> paving_*.jpg
+- Grass004 -> grass_*.jpg
+- Ground037 -> dirt_color.jpg
+Resized/re-encoded for the web.
