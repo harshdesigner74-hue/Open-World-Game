@@ -67,9 +67,10 @@ export function Controls() {
     ['Tab', 'Character'],
     ['J', 'Jobs board'],
     ['Esc', 'Pause'],
-    ['F', 'Enter / exit vehicle'],
+    ['F', 'Enter / exit vehicle · snatch from traffic'],
     ['W S / A D', 'Drive: throttle, brake-reverse / steer'],
     ['Space · H', 'Handbrake · Horn'],
+    ['R', 'Radio station'],
   ]
   return (
     <div className="controls">

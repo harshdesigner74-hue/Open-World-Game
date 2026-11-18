@@ -12,12 +12,45 @@ import { materials } from '../world/materials'
 import { VEHICLE_DIMS, vehicleTemplate, type VehicleKind } from '../world/models'
 import { DRIVE } from './specs'
 import { bump } from '../progress/progress'
+import { radio } from '../audio/radio'
+import { trafficApi } from '../traffic/TrafficSystem'
+import { npcApi } from '../npc/NPCSystem'
 
 /** Public helpers for other systems (garage delivery, missions). */
 export const driveApi = {
   /** put the player in a vehicle immediately */
   enter: (_v: { kind: VehicleKind; color: string; x: number; z: number; rot: number; health: number; fuel: number; owned: boolean; ownedId?: number }) => {},
   exit: () => {},
+}
+
+/** switch the radio on (entering) or to the next station (R) and show it on the HUD */
+function tuneIn(next: boolean) {
+  const g = useGame.getState()
+  const name = next ? radio.next() : radio.start()
+  useGame.setState({ radio: name ? { name, tag: radio.stationTag } : null })
+  if (next && !name) g.toast('📻 Radio off', 'info')
+}
+
+/** pull the driver out of a nearby AI vehicle and drive off in it */
+function snatch() {
+  const P = runtime.player.pos
+  const v = trafficApi.nearest(P.x, P.z, P.y, 1.4)
+  if (!v) return
+  const g = useGame.getState()
+  if (v.speed > 5) {
+    g.toast('🚗 Too fast — get in front of it so it stops, then press F', 'warn')
+    return
+  }
+  const spec = DRIVE[v.kind]!
+  // the driver tumbles out on their side (cars: right, two-wheelers: left) and runs
+  const side = spec.twoWheeler ? 1 : -1
+  const off = VEHICLE_DIMS[v.kind].w / 2 + 0.9
+  trafficApi.take(v.slot)
+  npcApi.flee(v.x + Math.cos(v.yaw) * side * off, v.z - Math.sin(v.yaw) * side * off, v.y, v.x, v.z)
+  audio.crash(4)
+  driveApi.enter({ kind: v.kind, color: v.color, x: v.x, z: v.z, rot: v.yaw, health: 100, fuel: 35 + Math.random() * 55, owned: false })
+  g.toast(`🚨 You snatched a ${spec.name.toLowerCase()}! The driver ran off shouting.`, 'warn')
+  bump((p) => ({ snatched: (p.snatched ?? 0) + 1 }))
 }
 
 export function PlayerVehicle() {
@@ -30,6 +63,7 @@ export function PlayerVehicle() {
     audio.blip(240, 0.05, 0.12)
     audio.engineStart(v.kind)
     bump((p) => ({ rides: p.rides + 1 }))
+    tuneIn(false)
   }
   const exit = () => {
     if (!D.active) return
@@ -56,6 +90,8 @@ export function PlayerVehicle() {
     useGame.setState({ vehicleHud: null })
     audio.engineStop()
     audio.blip(200, 0.05, 0.1)
+    radio.stopAll()
+    useGame.setState({ radio: null })
   }
   driveApi.enter = enter
   driveApi.exit = exit
@@ -68,7 +104,14 @@ export function PlayerVehicle() {
     s.target.position.set(0, -60, 1)
     return s
   }, [])
-  useEffect(() => () => audio.engineStop(), [])
+  useEffect(
+    () => () => {
+      audio.engineStop()
+      radio.stopAll()
+      useGame.setState({ radio: null })
+    },
+    [],
+  )
 
   useFrame(() => {
     const g = useGame.getState()
@@ -84,8 +127,13 @@ export function PlayerVehicle() {
           p.taken = true
           runtime.parked!.version++
           enter({ kind: p.kind, color: p.color, x: p.x, z: p.z, rot: p.rot, health: p.health, fuel: p.fuel, owned: p.owned, ownedId: p.ownedId })
-        }
+        } else snatch()
       }
+    }
+    if (D.active) {
+      // radio: R changes station; quieter while a menu or dialogue is open
+      if (playing && input.consume('KeyR')) tuneIn(true)
+      radio.duck(g.panel !== null)
     }
     const night = 1 - runtime.time.daylight
     spot.intensity = D.active ? night * 90 : 0

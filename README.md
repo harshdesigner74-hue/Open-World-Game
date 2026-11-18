@@ -27,9 +27,10 @@ On phones and tablets on-screen touch controls appear automatically (add `?touch
 | M | World map (scroll zoom, drag pan, click = waypoint, right-click = clear) |
 | Tab | Character menu (stats, money, outfit colours) |
 | Esc | Pause (resume, map, character, settings, save, exit) |
-| F | Enter / exit a vehicle |
+| F | Enter / exit a vehicle · next to a stopped car, bike or auto in traffic: snatch it |
 | W S · A D (driving) | Throttle, brake/reverse · steer |
 | Space · H (driving) | Handbrake · horn |
+| R (driving) | Change radio station (… → off) |
 | J | Jobs board |
 | P | Phone (contacts, call friends over, messages) |
 | E / Space / click (in a conversation) | Next line of story dialogue |
@@ -138,6 +139,8 @@ Talk steps use a letterboxed dialogue panel. Objectives get a HUD card and a map
 - **Vehicle state:** impacts cause damage, fuel is used per km, and a car you leave stays parked where you left it.
 - **Refuel and repair** at real OSM petrol pumps (press E while stopped).
 - **Feel:** a chase camera, a speedometer HUD, a synthesised engine note, a horn, and a headlight at night.
+- **Snatching:** walk up to a stopped (or slow) traffic vehicle and press F — the driver is pulled out, panics and runs off shouting, and the vehicle is yours to drive (not owned; leave it anywhere).
+- **Car radio:** music starts when you get in. Four original stations composed live in the browser (no recordings): *Radio Masala 98.3* (filmi pop), *Raag FM 101.1* (sitar & tabla, raag Yaman), *Bhangra Junction 104.8* (dhol & tumbi), *Lo-Fi Chai 91.9*. R changes station; it ducks during menus and dialogue.
 - **People and traffic:** pedestrians jump out of your way (and complain in Hinglish), and AI traffic accounts for your vehicle's size.
 - **Not done yet:** flyovers are still skipped (the world is flat), and there's no carjacking of moving AI traffic, by design.
 

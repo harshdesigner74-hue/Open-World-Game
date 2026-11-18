@@ -21,6 +21,8 @@ export interface Progress {
   earned: number
   chai: number
   rides: number
+  /** vehicles snatched from traffic */
+  snatched?: number
   landmarks: string[] // "city:name"
   cities: string[]
   diyas: Record<string, number[]>

@@ -7,6 +7,7 @@ import { npcApi } from '../npc/NPCSystem'
 import { runtime } from '../state/runtime'
 import { useGame } from '../state/store'
 import type { CityData, Interactable } from '../world/types'
+import { trafficApi } from '../traffic/TrafficSystem'
 import { DRIVE } from '../vehicles/specs'
 import { bump } from '../progress/progress'
 import { interiorApi } from '../interiors/InteriorSystem'
@@ -177,8 +178,12 @@ export function InteractionSystem({ city }: { city: CityData }) {
         } else if (!runtime.interior) {
           const pv = runtime.parked?.nearest(P.pos.x, P.pos.z, 3.4)
           const id = npcApi.nearest(P.pos.x, P.pos.z, 2.0)
+          const tv = !pv && !P.sitting ? trafficApi.nearest(P.pos.x, P.pos.z, P.pos.y, 1.4) : null
           if (pv && DRIVE[pv.kind]) {
             label = `Enter ${DRIVE[pv.kind]!.name.toLowerCase()}${pv.owned ? ' (yours)' : ''}`
+            key = 'F'
+          } else if (tv && tv.speed <= 5) {
+            label = `Snatch ${DRIVE[tv.kind]!.name.toLowerCase()}`
             key = 'F'
           } else if (id >= 0) {
             st.current.npc = id

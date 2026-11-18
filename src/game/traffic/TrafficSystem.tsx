@@ -1,6 +1,6 @@
 import { useFrame } from '@react-three/fiber'
 import { CuboidCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { audio } from '../audio/audioEngine'
 import { runtime, type VehicleState } from '../state/runtime'
@@ -11,6 +11,25 @@ import { materials } from '../world/materials'
 import { CAR_COLORS, VEHICLE_DIMS, seatedRider, vehicleTemplate, type VehicleKind } from '../world/models'
 import type { CityData, NetEdge, RoadNet } from '../world/types'
 import { axisOf, signalLight } from './signals'
+import { DRIVE as DRIVE_SPECS } from '../vehicles/specs'
+
+export interface TrafficGrab {
+  slot: number
+  kind: VehicleKind
+  color: string
+  x: number
+  y: number
+  z: number
+  yaw: number
+  speed: number
+}
+/** Lets the player pull a driver out of an AI vehicle and take it over. */
+export const trafficApi = {
+  /** nearest drivable AI vehicle whose body is within `r` metres of (x, z) */
+  nearest: (_x: number, _z: number, _y: number, _r: number): TrafficGrab | null => null,
+  /** remove the AI vehicle from traffic (the player now drives a copy of it) */
+  take: (_slot: number) => {},
+}
 
 /**
  * AI traffic on the real road graph (OpenStreetMap ways split at junctions).
@@ -209,6 +228,40 @@ export function TrafficSystem({ city }: { city: CityData }) {
     }
     return false
   }
+
+  useEffect(() => {
+    trafficApi.nearest = (x, z, y, r) => {
+      let best: TrafficGrab | null = null
+      let bd = r
+      for (const c of sim.cars) {
+        if (!c.active || !DRIVE_SPECS[c.kind] || Math.abs(c.y - y) > 2) continue
+        const rx = x - c.x, rz = z - c.z
+        if (Math.abs(rx) > 8 || Math.abs(rz) > 8) continue
+        // distance from the point to the vehicle's footprint (oriented box)
+        const lat = rx * Math.cos(c.yaw) - rz * Math.sin(c.yaw)
+        const along = rx * Math.sin(c.yaw) + rz * Math.cos(c.yaw)
+        const d = Math.hypot(Math.max(0, Math.abs(lat) - c.w / 2), Math.max(0, Math.abs(along) - c.l / 2))
+        if (d < bd) {
+          bd = d
+          best = { slot: c.slot, kind: c.kind, color: c.color, x: c.x, y: c.y, z: c.z, yaw: c.yaw, speed: c.speed }
+        }
+      }
+      return best
+    }
+    trafficApi.take = (slot) => {
+      const c = sim.cars[slot]
+      if (!c) return
+      c.active = false
+      c.pub.x = 0
+      c.pub.z = -99999
+      // move the collider out of the way now, so the player's car doesn't spawn inside it
+      bodies.current[slot]?.setTranslation({ x: slot * 4, y: -60, z: 0 }, true)
+    }
+    return () => {
+      trafficApi.nearest = () => null
+      trafficApi.take = () => {}
+    }
+  }, [sim])
 
   const tmpQ = useMemo(() => new THREE.Quaternion(), [])
   const tmpE = useMemo(() => new THREE.Euler(), [])

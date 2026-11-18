@@ -155,7 +155,7 @@ function fmtTime(min: number) {
 }
 
 function HUD() {
-  const { health, stamina, cash, timeMin, day, prompt, promptKey, waypoint, sitting, vehicleHud } = useGame()
+  const { health, stamina, cash, timeMin, day, prompt, promptKey, waypoint, sitting, vehicleHud, radio } = useGame()
   const [loc, setLoc] = useState({ area: '', road: '', wpDist: 0, weather: weather.type })
   useEffect(() => {
     const city = runtime.city!
@@ -222,6 +222,18 @@ function HUD() {
             <div className="hbar"><div className="hbar-fill health" style={{ width: `${vehicleHud.health}%`, background: vehicleHud.health < 30 ? '#e74c3c' : undefined }} /></div>
             <span>⛽</span>
             <div className="hbar"><div className="hbar-fill fuel" style={{ width: `${vehicleHud.fuel}%` }} /></div>
+          </div>
+          <div className="speedo-radio">
+            {radio ? (
+              <>
+                <span className="radio-eq" aria-hidden><i /><i /><i /></span>
+                <b>{radio.name}</b>
+                <small>{radio.tag}</small>
+              </>
+            ) : (
+              <small>📻 Radio off</small>
+            )}
+            <kbd>R</kbd>
           </div>
         </div>
       )}

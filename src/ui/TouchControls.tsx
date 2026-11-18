@@ -116,6 +116,7 @@ export function TouchControls() {
         {btn(driving ? 'EXIT' : 'CAR', 'KeyF')}
         {btn(driving ? 'BRAKE' : 'JUMP', 'Space', 'tbtn-big')}
         {driving && btn('HORN', 'KeyH')}
+        {driving && btn('📻', 'KeyR')}
         {!driving && btn('RUN', 'ShiftLeft')}
       </div>
       <div className="ttop">

@@ -78,6 +78,8 @@ export interface GameStore {
   progress: Progress
   job: ActiveJob | null
   vehicleHud: { name: string; speed: number; health: number; fuel: number } | null
+  /** station playing on the car radio */
+  radio: { name: string; tag: string } | null
   setScreen: (s: Screen) => void
   openPanel: (p: Panel, data?: Record<string, unknown> | null) => void
   closePanel: () => void
@@ -133,6 +135,7 @@ export const useGame = create<GameStore>((set, get) => ({
   progress: newProgress(),
   job: null,
   vehicleHud: null,
+  radio: null,
   hasSave: (() => {
     try {
       return !!localStorage.getItem('iow-save-v2')

@@ -1,3 +1,4 @@
+import { radio } from './radio'
 /**
  * Fully procedural ambience with the Web Audio API — no audio files, nothing licensed.
  * Layers: traffic rumble, crowd murmur, birds (day), crickets (night), positional horns,
@@ -27,6 +28,7 @@ class AudioEngine {
     this.master.gain.value = this.volume
     const comp = ctx.createDynamicsCompressor()
     this.master.connect(comp).connect(ctx.destination)
+    radio.attach(ctx, this.master)
 
     // traffic: brown noise through a low-pass, slow modulation
     this.traffic = ctx.createGain()

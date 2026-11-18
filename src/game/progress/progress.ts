@@ -19,6 +19,7 @@ export const ACHIEVEMENTS: Record<string, { title: string; desc: string; reward:
   married: { title: 'Shaadi Mubarak', desc: 'Get married', reward: 10000 },
   owner: { title: 'Gaadi Wala', desc: 'Buy your own vehicle', reward: 0 },
   stylish: { title: 'Fashionable', desc: 'Buy a new outfit style', reward: 100 },
+  gaadi_chor: { title: 'Gaadi Chor', desc: 'Snatch a vehicle from traffic', reward: 0 },
 }
 
 export function unlock(id: string) {
@@ -42,4 +43,5 @@ export function bump(patch: (p: Progress) => Partial<Progress>) {
   if (p.jobsDone >= 10) unlock('hard_worker')
   if (p.vehicles.length >= 1) unlock('owner')
   if (p.ownedStyles.length >= 2) unlock('stylish')
+  if ((p.snatched ?? 0) >= 1) unlock('gaadi_chor')
 }

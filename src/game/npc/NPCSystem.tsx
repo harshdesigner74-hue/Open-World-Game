@@ -21,7 +21,7 @@ import { PART, PART_COUNT, faceTexture, hideBody, makeAppearance, newPose, partG
  *    time of day and the quality setting).
  */
 
-type State = 'walk' | 'wait' | 'pause' | 'phone' | 'talk' | 'stand' | 'sit' | 'vendor' | 'police'
+type State = 'walk' | 'wait' | 'pause' | 'phone' | 'talk' | 'stand' | 'sit' | 'vendor' | 'police' | 'flee'
 
 interface NPC {
   active: boolean
@@ -78,7 +78,17 @@ export const npcApi = {
   nearest: (_x: number, _z: number, _r: number): number => -1,
   talk: (_id: number): string | null => null,
   position: (_id: number): { x: number; z: number } | null => null,
+  /** a driver thrown out of their vehicle: appears at (x, z) and runs away from the player, shouting */
+  flee: (_x: number, _z: number, _y: number, _fromX: number, _fromZ: number) => {},
 }
+
+const CARJACK_SHOUTS = [
+  { hi: 'Arre! Meri gaadi!', en: 'Hey! My car!' },
+  { hi: 'Chor! Chor! Pakdo!', en: 'Thief! Thief! Catch him!' },
+  { hi: 'Police! Koi rokho isse!', en: 'Police! Somebody stop him!' },
+  { hi: 'EMI abhi baaki hai!', en: 'I still have loan payments on that!' },
+  { hi: 'Bhagwan tumhe dekh raha hai!', en: 'God is watching you!' },
+]
 
 export function NPCSystem({ city }: { city: CityData }) {
   const quality = useGame((s) => s.settings.quality)
@@ -199,6 +209,34 @@ export function NPCSystem({ city }: { city: CityData }) {
       n.homeYaw = Math.atan2(p.x - n.x, p.z - n.z)
       runtime.speech = { x: n.x, y: n.y + 2.05 * n.ap.height, z: n.z, text: `${line.hi}\n(${line.en})`, until: runtime.time.elapsed + 5 }
       return line.hi
+    }
+    npcApi.flee = (x, z, y, fromX, fromZ) => {
+      const slot = sim.npcs.findIndex((n, i) => !n.active && i < Q.npcs)
+      const i = slot >= 0 ? slot : sim.npcs.findIndex((n, j) => n.active && !n.anchored && j < Q.npcs && Math.hypot(n.x - runtime.player.pos.x, n.z - runtime.player.pos.z) > 60)
+      if (i < 0) return
+      // borrow a pavement node so the walker routine has somewhere to go afterwards
+      let node = -1
+      let bd = Infinity
+      for (const k of sim.nodeHash.query(x - 30, z - 30, x + 30, z + 30)) {
+        const d = Math.hypot(city.graph.x[k] - x, city.graph.z[k] - z)
+        if (d < bd) {
+          bd = d
+          node = k
+        }
+      }
+      if (node < 0) return
+      spawnWalker(i, node)
+      const n = sim.npcs[i]
+      n.x = x
+      n.z = z
+      n.y = y
+      n.yaw = Math.atan2(x - fromX, z - fromZ)
+      n.state = 'flee'
+      n.timer = 5 + Math.random() * 2
+      n.speed = 4.6
+      n.from = n.to = node
+      const l = CARJACK_SHOUTS[Math.floor(Math.random() * CARJACK_SHOUTS.length)]
+      runtime.speech = { x, y: y + 2.05 * n.ap.height, z, text: `${l.hi}\n(${l.en})`, until: runtime.time.elapsed + 3.5 }
     }
     npcApi.position = (id) => (sim.npcs[id]?.active ? { x: sim.npcs[id].x, z: sim.npcs[id].z } : null)
   }, [sim])
@@ -422,7 +460,7 @@ export function NPCSystem({ city }: { city: CityData }) {
 
       // pose
       const p = n.pose
-      const walking = n.state === 'walk' && n.speed > 0.1
+      const walking = (n.state === 'walk' || n.state === 'flee') && n.speed > 0.1
       n.phase += walking ? dt * Math.PI * (1.2 + n.speed * 0.55) : 0
       const s = Math.sin(n.phase)
       const amp = walking ? (n.ap.elderly ? 0.28 : 0.42) * Math.min(1.4, n.speed / 1.3) : 0
@@ -495,6 +533,18 @@ export function NPCSystem({ city }: { city: CityData }) {
           }
           break
         }
+        case 'flee':
+          // panicked sprint: lean in, arms pumping high
+          p.lean = 0.16
+          p.armL = s * 0.9 - 0.3
+          p.armR = -s * 0.9 - 0.3
+          p.elbowL = p.elbowR = -1.3
+          if (n.timer > 4.5) {
+            // first moment: hands up in shock
+            p.armL = p.armR = -2.7
+            p.elbowL = p.elbowR = -0.3
+          }
+          break
         case 'stand':
           if (n.kind !== 'guard') {
             // sipping chai
@@ -528,6 +578,20 @@ export function NPCSystem({ city }: { city: CityData }) {
   /** Walker routine: follow the graph, obey pedestrian signals, pause, avoid. */
   function stepWalker(n: NPC, dt: number, t: number, playerDist: number) {
     const g = city.graph
+    if (n.state === 'flee') {
+      // sprint away from the player, swerving a little; then calm down and walk on
+      n.timer -= dt
+      const p = runtime.player.pos
+      const away = Math.atan2(n.x - p.x, n.z - p.z)
+      n.yaw = dampAngle(n.yaw, away + Math.sin(t * 1.7 + n.seed) * 0.35, 4, dt)
+      n.x += Math.sin(n.yaw) * n.speed * dt
+      n.z += Math.cos(n.yaw) * n.speed * dt
+      if (n.timer <= 0) {
+        n.state = 'walk'
+        n.speed = n.baseSpeed
+      }
+      return
+    }
     if (n.state === 'talk' || n.state === 'pause' || n.state === 'phone') {
       n.timer -= dt
       n.speed = 0
