@@ -295,13 +295,15 @@ export interface Pose {
   headYaw: number
   headPitch: number
   hipsY: number
+  /** whole-body pitch about the hips (negative = falling on the back) */
+  fall: number
   phone: boolean
   umbrella: boolean
 }
 
 export const newPose = (): Pose => ({
   thighL: 0, thighR: 0, kneeL: 0, kneeR: 0, armL: 0, armR: 0, armZL: 0.06, armZR: -0.06, elbowL: -0.1, elbowR: -0.1,
-  lean: 0, twist: 0, headYaw: 0, headPitch: 0, hipsY: 0.93, phone: false, umbrella: false,
+  lean: 0, twist: 0, headYaw: 0, headPitch: 0, hipsY: 0.93, fall: 0, phone: false, umbrella: false,
 })
 
 const mRoot = new THREE.Matrix4()
@@ -325,7 +327,7 @@ export function writeBody(meshes: THREE.InstancedMesh[], i: number, x: number, y
   sv.set(ap.height, ap.height, ap.height)
   mRoot.scale(sv)
   mRoot.setPosition(x, y, z)
-  mHips.multiplyMatrices(mRoot, local(0, 0, 0, 0, p.hipsY, 0))
+  mHips.multiplyMatrices(mRoot, local(p.fall, 0, 0, 0, p.hipsY, 0))
   meshes[PART.hips].setMatrixAt(i, mHips)
   const stoop = ap.elderly ? 0.22 : 0
   mTorso.multiplyMatrices(mHips, local(p.lean + stoop, p.twist, 0, 0, 0.04, 0))

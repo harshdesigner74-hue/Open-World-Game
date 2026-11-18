@@ -44,6 +44,13 @@ export function Minimap() {
       // nearby vehicles
       g.fillStyle = 'rgba(255,255,255,0.55)'
       for (const v of runtime.vehicles) if (Math.abs(v.x - P.x) < 160 && Math.abs(v.z - P.z) < 160) g.fillRect(v.x - 1.5, v.z - 1.5, 3, 3)
+      // police: flashing red / blue
+      g.fillStyle = Math.floor(now / 250) % 2 ? '#ff3030' : '#3a6bff'
+      for (const c of runtime.police) {
+        g.beginPath()
+        g.arc(c.x, c.z, 5, 0, Math.PI * 2)
+        g.fill()
+      }
       // landmarks
       for (const l of city.landmarks) {
         if (Math.abs(l.x - P.x) > 200 || Math.abs(l.z - P.z) > 200) continue

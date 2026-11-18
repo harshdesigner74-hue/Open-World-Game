@@ -84,6 +84,8 @@ export const runtime = {
   /** rapier body of the driven vehicle (camera rays ignore it) */
   driveBody: null as unknown,
   npcs: [] as NPCPublic[],
+  /** police cars chasing the player (minimap) */
+  police: [] as { x: number; z: number }[],
   /** NPC currently talking to the player: world position for the speech bubble */
   speech: null as null | { x: number; y: number; z: number; text: string; until: number },
   stats: { fps: 0, drawCalls: 0, triangles: 0, chunks: 0, lodChunks: 0, physChunks: 0, npcs: 0, vehicles: 0 },
@@ -99,6 +101,7 @@ export function resetRuntime(city: CityData) {
   runtime.player.sitPose = null
   runtime.vehicles = []
   runtime.npcs = []
+  runtime.police = []
   runtime.speech = null
   runtime.drive.active = false
   runtime.parked = null

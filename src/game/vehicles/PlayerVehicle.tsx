@@ -15,6 +15,8 @@ import { bump } from '../progress/progress'
 import { radio } from '../audio/radio'
 import { trafficApi } from '../traffic/TrafficSystem'
 import { npcApi } from '../npc/NPCSystem'
+import { reportTheft } from '../crime/crime'
+import { policeApi } from '../crime/PoliceSystem'
 
 /** Public helpers for other systems (garage delivery, missions). */
 export const driveApi = {
@@ -50,6 +52,8 @@ function snatch() {
   audio.crash(4)
   driveApi.enter({ kind: v.kind, color: v.color, x: v.x, z: v.z, rot: v.yaw, health: 100, fuel: 35 + Math.random() * 55, owned: false })
   g.toast(`🚨 You snatched a ${spec.name.toLowerCase()}! The driver ran off shouting.`, 'warn')
+  // someone calls it in: always if police are around, otherwise sometimes
+  reportTheft(policeApi.nearestCop(v.x, v.z) < 70 || npcApi.policeNear(v.x, v.z, 45) < 45 || Math.random() < 0.4)
   bump((p) => ({ snatched: (p.snatched ?? 0) + 1 }))
 }
 

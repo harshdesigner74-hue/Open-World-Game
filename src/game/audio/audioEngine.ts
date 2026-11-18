@@ -302,6 +302,39 @@ class AudioEngine {
     }
     this.eng = null
   }
+  private sir: { gain: GainNode } | null = null
+  /** police siren (wail), 0 = silent, 1 = right next to you */
+  siren(level: number) {
+    const ctx = this.ctx
+    if (!ctx) return
+    if (!this.sir) {
+      if (level <= 0.001) return
+      const osc = ctx.createOscillator()
+      osc.type = 'sawtooth'
+      osc.frequency.value = 900
+      // slow up-down wail
+      const lfo = ctx.createOscillator()
+      lfo.type = 'triangle'
+      lfo.frequency.value = 0.42
+      const depth = ctx.createGain()
+      depth.gain.value = 330
+      lfo.connect(depth).connect(osc.frequency)
+      const lp = ctx.createBiquadFilter()
+      lp.type = 'lowpass'
+      lp.frequency.value = 2400
+      const bp = ctx.createBiquadFilter()
+      bp.type = 'peaking'
+      bp.frequency.value = 1100
+      bp.gain.value = 6
+      const gain = ctx.createGain()
+      gain.gain.value = 0
+      osc.connect(lp).connect(bp).connect(gain).connect(this.master)
+      osc.start()
+      lfo.start()
+      this.sir = { gain }
+    }
+    this.sir.gain.gain.setTargetAtTime(level * level * 0.06, ctx.currentTime, 0.2)
+  }
   crash(impact: number) {
     const ctx = this.ctx
     if (!ctx || ctx.state !== 'running') return

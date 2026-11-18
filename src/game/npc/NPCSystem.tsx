@@ -9,6 +9,9 @@ import type { CityData } from '../world/types'
 import { signalPoles } from '../world/chunkBuilder'
 import { BUMP, chatterLine, lineFor, vendorCall, type NPCKind } from './dialogue'
 import { weather } from '../env/weather'
+import { audio } from '../audio/audioEngine'
+import { reportHit } from '../crime/crime'
+import { VEHICLE_DIMS } from '../world/models'
 import { PART, PART_COUNT, faceTexture, hideBody, makeAppearance, newPose, partGeometries, writeBody, type Appearance, type Pose } from './humanBody'
 
 /**
@@ -21,7 +24,7 @@ import { PART, PART_COUNT, faceTexture, hideBody, makeAppearance, newPose, partG
  *    time of day and the quality setting).
  */
 
-type State = 'walk' | 'wait' | 'pause' | 'phone' | 'talk' | 'stand' | 'sit' | 'vendor' | 'police' | 'flee'
+type State = 'walk' | 'wait' | 'pause' | 'phone' | 'talk' | 'stand' | 'sit' | 'vendor' | 'police' | 'flee' | 'down'
 
 interface NPC {
   active: boolean
@@ -48,6 +51,11 @@ interface NPC {
   look: number
   seed: number
   umbrella: boolean
+  /** knock-back velocity while down */
+  kx: number
+  kz: number
+  /** state to return to after getting up (anchored NPCs) */
+  resume: State
 }
 
 interface Anchor {
@@ -80,6 +88,8 @@ export const npcApi = {
   position: (_id: number): { x: number; z: number } | null => null,
   /** a driver thrown out of their vehicle: appears at (x, z) and runs away from the player, shouting */
   flee: (_x: number, _z: number, _y: number, _fromX: number, _fromZ: number) => {},
+  /** distance to the nearest on-duty police officer on foot (Infinity if none within r) */
+  policeNear: (_x: number, _z: number, _r: number): number => Infinity,
 }
 
 const CARJACK_SHOUTS = [
@@ -89,6 +99,14 @@ const CARJACK_SHOUTS = [
   { hi: 'EMI abhi baaki hai!', en: 'I still have loan payments on that!' },
   { hi: 'Bhagwan tumhe dekh raha hai!', en: 'God is watching you!' },
 ]
+const HIT_COMPLAINTS = [
+  { hi: 'Andha hai kya?!', en: 'Are you blind?!' },
+  { hi: 'Number note kar liya maine!', en: 'I have noted your number plate!' },
+  { hi: 'Hai Ram… meri kamar!', en: 'Oh God… my back!' },
+  { hi: 'Police ko bulao!', en: 'Call the police!' },
+  { hi: 'Gaadi chalana seekh pehle!', en: 'Learn to drive first!' },
+]
+const DOWN_TIME = 6
 
 export function NPCSystem({ city }: { city: CityData }) {
   const quality = useGame((s) => s.settings.quality)
@@ -157,7 +175,7 @@ export function NPCSystem({ city }: { city: CityData }) {
     const npcs: NPC[] = Array.from({ length: capacity }, (_, i) => ({
       active: false, anchored: false, kind: 'office' as NPCKind, ap: makeAppearance('office', i), pose: newPose(),
       x: 0, z: 0, y: 0, yaw: 0, homeYaw: 0, speed: 0, baseSpeed: 1.3, lane: 0, from: 0, to: 0, prev: -1,
-      state: 'walk' as State, timer: 0, phase: 0, talkCooldown: 0, anchorId: -1, look: 0, seed: i, umbrella: false,
+      state: 'walk' as State, timer: 0, phase: 0, talkCooldown: 0, anchorId: -1, look: 0, seed: i, umbrella: false, kx: 0, kz: 0, resume: 'walk' as State,
     }))
     return { rng, nodeHash, anchors, anchorHash, npcs, crowd: new SpatialHash<number>(3), spawnTick: 0, anchorTick: 0, bumpCooldown: 0, seedCounter: 1000, chatCooldown: 3 }
   }, [city, capacity])
@@ -237,6 +255,15 @@ export function NPCSystem({ city }: { city: CityData }) {
       n.from = n.to = node
       const l = CARJACK_SHOUTS[Math.floor(Math.random() * CARJACK_SHOUTS.length)]
       runtime.speech = { x, y: y + 2.05 * n.ap.height, z, text: `${l.hi}\n(${l.en})`, until: runtime.time.elapsed + 3.5 }
+    }
+    npcApi.policeNear = (x, z, r) => {
+      let bd = Infinity
+      for (const n of sim.npcs) {
+        if (!n.active || n.kind !== 'police' || n.state === 'down') continue
+        const d = Math.hypot(n.x - x, n.z - z)
+        if (d < r && d < bd) bd = d
+      }
+      return bd
     }
     npcApi.position = (id) => (sim.npcs[id]?.active ? { x: sim.npcs[id].x, z: sim.npcs[id].z } : null)
   }, [sim])
@@ -435,9 +462,31 @@ export function NPCSystem({ city }: { city: CityData }) {
         }
       }
 
-      // jump out of the way of the player's vehicle
+      // knocked over by the player's vehicle
       const DV = runtime.drive
-      if (DV.active && Math.abs(DV.speed) > 2 && pd < 12 && dt > 0) {
+      if (DV.active && n.state !== 'down' && n.state !== 'sit' && Math.abs(DV.speed) > 4 && pd < 8 && dt > 0 && Math.abs(n.y - DV.y) < 1.5) {
+        const hx = Math.sin(DV.yaw), hz = Math.cos(DV.yaw)
+        const rx = n.x - DV.x, rz = n.z - DV.z
+        const along = rx * hx + rz * hz
+        const lat = rx * hz - rz * hx
+        const dims = VEHICLE_DIMS[DV.kind]
+        if (Math.abs(along) < dims.l / 2 + 0.3 && Math.abs(lat) < dims.w / 2 + 0.25) {
+          const v = Math.abs(DV.speed)
+          const away = lat >= 0 ? 1 : -1
+          n.resume = n.anchored ? n.state : 'walk'
+          n.state = 'down'
+          n.timer = DOWN_TIME + Math.random() * 2
+          n.speed = 0
+          n.kx = hx * Math.sign(DV.speed) * v * 0.45 + hz * away * v * 0.25
+          n.kz = hz * Math.sign(DV.speed) * v * 0.45 - hx * away * v * 0.25
+          n.yaw = Math.atan2(-n.kx, -n.kz) // falls backwards, away from the car
+          DV.speed *= 0.82
+          audio.crash(Math.min(8, v * 0.6))
+          reportHit(n.x, n.z, n.kind === 'police')
+        }
+      }
+      // jump out of the way of the player's vehicle
+      if (DV.active && n.state !== 'down' && Math.abs(DV.speed) > 2 && pd < 12 && dt > 0) {
         const fx = Math.sin(DV.yaw) * Math.sign(DV.speed), fz = Math.cos(DV.yaw) * Math.sign(DV.speed)
         const rx = n.x - DV.x, rz = n.z - DV.z
         const along = rx * fx + rz * fz
@@ -453,7 +502,22 @@ export function NPCSystem({ city }: { city: CityData }) {
           }
         }
       }
-      if (!n.anchored) stepWalker(n, dt, t, pd)
+      if (n.state === 'down') {
+        n.timer -= dt
+        n.x += n.kx * dt
+        n.z += n.kz * dt
+        const fr = Math.max(0, 1 - dt * 5)
+        n.kx *= fr
+        n.kz *= fr
+        if (n.timer <= 0) {
+          n.state = n.resume
+          n.timer = 0
+          n.speed = n.baseSpeed
+          n.talkCooldown = 3
+          const l = HIT_COMPLAINTS[Math.floor(Math.random() * HIT_COMPLAINTS.length)]
+          if (pd < 40) runtime.speech = { x: n.x, y: n.y + 2.05 * n.ap.height, z: n.z, text: `${l.hi}\n(${l.en})`, until: t + 3.5 }
+        }
+      } else if (!n.anchored) stepWalker(n, dt, t, pd)
       else if (n.state === 'talk' || n.state === 'stand' || n.state === 'vendor' || n.state === 'police') {
         n.yaw = dampAngle(n.yaw, lookAtPlayer && n.talkCooldown > 0 ? Math.atan2(P.x - n.x, P.z - n.z) : n.homeYaw, 3, dt)
       }
@@ -476,6 +540,7 @@ export function NPCSystem({ city }: { city: CityData }) {
       p.lean = walking ? 0.04 : Math.sin(t * 1.3 + i) * 0.01
       p.twist = s * amp * 0.15
       p.hipsY = 0.93 + (walking ? Math.cos(n.phase * 2) * 0.012 : 0)
+      p.fall = 0
       p.phone = false
       p.umbrella = !n.anchored && n.umbrella && weather.rain > 0.25
       if (p.umbrella) {
@@ -531,6 +596,24 @@ export function NPCSystem({ city }: { city: CityData }) {
             p.armZR = -0.2
             p.elbowR = Math.sin(t * 5) * 0.6 - 0.3
           }
+          break
+        }
+        case 'down': {
+          // fall over (fast), lie there, then get back up (slowly)
+          const el = DOWN_TIME - n.timer
+          const f = n.timer < 1.2 ? Math.max(0, n.timer / 1.2) : Math.min(1, el * 4)
+          p.fall = -1.45 * f
+          p.hipsY = 0.93 - 0.8 * f
+          p.armZL = 0.07 + 1.1 * f
+          p.armZR = -0.07 - 1.1 * f
+          p.armL = p.armR = -0.3 * f
+          p.elbowL = p.elbowR = -0.4
+          p.thighL = -0.25 * f
+          p.thighR = 0.15 * f
+          p.kneeL = 0.5 * f
+          p.kneeR = 0.15
+          p.headPitch = -0.3 * f
+          p.lean = 0
           break
         }
         case 'flee':

@@ -155,7 +155,7 @@ function fmtTime(min: number) {
 }
 
 function HUD() {
-  const { health, stamina, cash, timeMin, day, prompt, promptKey, waypoint, sitting, vehicleHud, radio } = useGame()
+  const { health, stamina, cash, timeMin, day, prompt, promptKey, waypoint, sitting, vehicleHud, radio, wanted } = useGame()
   const [loc, setLoc] = useState({ area: '', road: '', wpDist: 0, weather: weather.type })
   useEffect(() => {
     const city = runtime.city!
@@ -204,6 +204,25 @@ function HUD() {
           </div>
         </div>
       </div>
+      {wanted && (
+        <div className={`wanted ${wanted.seen ? 'seen' : 'hiding'}`}>
+          <div className="wanted-stars">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <span key={n} className={n <= wanted.level ? 'on' : ''}>★</span>
+            ))}
+          </div>
+          <div className="wanted-charges">{wanted.charges.join(' · ')}</div>
+          <div className="wanted-status">
+            {wanted.seen ? '🚨 Police have eyes on you' : `Hiding… ${Math.round(wanted.evade * 100)}%`}
+          </div>
+        </div>
+      )}
+      {wanted && wanted.bust > 0.02 && (
+        <div className="busting">
+          <span>STOPPED BY POLICE — MOVE!</span>
+          <div className="busting-bar"><i style={{ width: `${wanted.bust * 100}%` }} /></div>
+        </div>
+      )}
       <div className="hud-bl">
         <Minimap />
         <div className="hud-loc">

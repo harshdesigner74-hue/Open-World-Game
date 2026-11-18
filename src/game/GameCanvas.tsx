@@ -10,6 +10,7 @@ import { Player } from './player/Player'
 import { runtime } from './state/runtime'
 import { QUALITY, useGame } from './state/store'
 import { TrafficSystem } from './traffic/TrafficSystem'
+import { PoliceSystem } from './crime/PoliceSystem'
 import { ParkedVehicles } from './vehicles/ParkedVehicles'
 import { PlayerVehicle } from './vehicles/PlayerVehicle'
 import { MissionSystem } from './missions/MissionSystem'
@@ -59,6 +60,7 @@ export function GameCanvas({ city, onReady }: { city: CityData; onReady: () => v
             <Player />
             <NPCSystem city={city} />
             <TrafficSystem city={city} />
+            <PoliceSystem city={city} />
             <InteractionSystem city={city} />
             <WaypointBeacon />
             <MissionSystem city={city} />

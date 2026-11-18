@@ -80,6 +80,8 @@ export interface GameStore {
   vehicleHud: { name: string; speed: number; health: number; fuel: number } | null
   /** station playing on the car radio */
   radio: { name: string; tag: string } | null
+  /** police heat (null = not wanted) */
+  wanted: { level: number; seen: boolean; evade: number; bust: number; charges: string[] } | null
   setScreen: (s: Screen) => void
   openPanel: (p: Panel, data?: Record<string, unknown> | null) => void
   closePanel: () => void
@@ -136,6 +138,7 @@ export const useGame = create<GameStore>((set, get) => ({
   job: null,
   vehicleHud: null,
   radio: null,
+  wanted: null,
   hasSave: (() => {
     try {
       return !!localStorage.getItem('iow-save-v2')
